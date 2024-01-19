@@ -54,7 +54,7 @@ def mergeGit(repo_dir, git_branch):
         try:
             # The merge is done in the branch
             repo.index.commit(
-                f"Merged {git_branch} and main into {git_branch};)",
+                f"Merged {git_branch} and main",
                 parent_commits=(git_branch.commit, main.commit),
             )
             # Now, git_branch is ahed of master. Now let master point to the recent commit
