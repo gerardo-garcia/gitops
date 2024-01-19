@@ -83,14 +83,14 @@ if __name__ == "__main__":
         "-r",
         "--repo",
         default="git@github.com:gerardo-garcia/gitops.git",
-        help="config file to map the datree issues with an impact and relevance",
+        help="git repository to be used",
     )
-    parser.add_argument(
-        "-c",
-        "--config",
-        default="crd_templates.yaml",
-        help="config file to define templatesmap the datree issues with an impact and relevance",
-    )
+    # parser.add_argument(
+    #     "-c",
+    #     "--catalog",
+    #     default="sw-catalogs",
+    #     help="folder in git repository that stores the templates",
+    # )
     parser.add_argument("-v", "--verbose", action="count", default=0, help="increase output verbosity")
     args = parser.parse_args()
 
@@ -104,20 +104,26 @@ if __name__ == "__main__":
     # Execution of operations
     for op in operations:
         try:
-            logger.info(f"Operation {op['id']}: {op['op']} {op['what']} {op['which']}, params: {op.get('patch','None')}")
-            logger.info("Step 1. Clone Git Repo")
+            op_info = f"Operation {op['id']}: {op['op']} {op['what']} {op['which']}"
+            logger.info(f"{op_info}, params: {op.get('patch','None')}")
+            logger.info("Step 1. Clone Git Repo and create branch")
             input("Press Enter to proceed...")
-            repo_dir = common.cloneGitRepo(repo_url=args.repo)
+            repo_dir = common.cloneGitRepo(repo_url=args.repo, branch=f"op-{op['id']}")
             logger.info("Step 2. Create/Update/Delete Kubernetes Manifests")
             input("Press Enter to proceed...")
             common.prepareManifests(repo_dir, op)
-            logger.info("Step 3. Push Changes to Git Branch")
+            logger.info("Step 3. Create Commit in local Branch")
             input("Press Enter to proceed...")
-            git_branch = common.pushToGit(repo_dir)
-            logger.info("Step 4. Merge Changes")
+            git_branch = common.createCommit(repo_dir, commit_msg=op_info)
+            logger.info("Step 4. Merge local branch in main")
             input("Press Enter to proceed...")
             result = common.mergeGit(repo_dir, git_branch)
-            print(result)
+            logger.info(f"Merge result: {result}")
+            if not result:
+                raise Exception("Failed merge")
+            logger.info("Step 5. Push changes to remote")
+            input("Press Enter to proceed...")
+            result = common.pushToRemote(repo_dir)
             input("Press Enter to continue...")
         except Exception:
             raise Exception()
