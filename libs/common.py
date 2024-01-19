@@ -16,7 +16,7 @@ def cloneGitRepo(repo_url, branch):
     logger.debug(f"Current active branch: {cloned_repo.active_branch}")
     assert cloned_repo
     new_branch = cloned_repo.create_head(branch)  # create a new branch
-    assert (new_branch.checkout() == cloned_repo.active_branch)
+    assert new_branch.checkout() == cloned_repo.active_branch
     logger.debug(f"Current active branch: {cloned_repo.active_branch}")
     logger.info(f"Repo {repo_url} cloned in {tmpdir}. New branch: {branch}")
     return tmpdir
@@ -70,10 +70,11 @@ def mergeGit(repo_dir, git_branch):
 
 def pushToRemote(repo_dir):
     repo = Repo(repo_dir)
-    logger.info(f"Pushing the change to remote")
+    logger.info("Pushing the change to remote")
     # repo.remotes.origin.push(refspec='{}:{}'.format(local_branch, remote_branch))
     repo.remotes.origin.push()
-    logger.info(f"DONE")
+    logger.info("DONE")
+    return True
 
 
 def prepareManifests(repo_dir, operation):
@@ -91,7 +92,7 @@ def prepareManifests(repo_dir, operation):
         # If operation is delete, delete the folder "manifest_dir"
         logger.info(f"Manifests in {manifests_dir} will be deleted")
         shutil.rmtree(path=manifests_dir)
-        logger.info(f"Deleted")
+        logger.info("Deleted")
     else:
         if operation["op"] == "create":
             # If operation is create, create the folder "manifest_dir"
