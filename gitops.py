@@ -99,7 +99,13 @@ if __name__ == "__main__":
 
     # Define operations
     operations = testOperationSequence()
-    logger.info(f"Operations:\n{yaml.safe_dump(operations, indent=4, default_flow_style=False, sort_keys=False)}")
+    logger.info(f"Testing {len(operations)} operations:")
+    for op in operations:
+        op_info = f"Operation {op['id']}: {op['op']} {op['what']} {op['which']}"
+        logger.info(f"- {op_info}")
+    input("Press Enter to proceed...")
+
+    logger.debug(f"Operations:\n{yaml.safe_dump(operations, indent=4, default_flow_style=False, sort_keys=False)}")
 
     # Execution of operations
     for op in operations:
