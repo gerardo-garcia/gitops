@@ -7,7 +7,7 @@ spec:
     kubernetesVersion: '1.25'
     defaultNodePool:
     - name: default
-      nodeCount: '1'
+      nodeCount: '2'
       vmSize: Standard_D2_v2
     dnsPrefix: pref-gold-fare-O6PCG2Y
     identity:
