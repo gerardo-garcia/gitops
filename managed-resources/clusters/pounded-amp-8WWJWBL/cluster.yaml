@@ -1,0 +1,21 @@
+apiVersion: containerservice.azure.upbound.io/v1beta1
+kind: KubernetesCluster
+metadata:
+  name: pounded-amp-8WWJWBL
+spec:
+  forProvider:
+    kubernetesVersion: '1.25'
+    defaultNodePool:
+    - name: default
+      nodeCount: '1'
+      vmSize: Standard_D2_v2
+    dnsPrefix: pref-pounded-amp-8WWJWBL
+    identity:
+    - type: SystemAssigned
+    location: West Europe
+    resourceGroupName: CloudNative-InfraMgmt-CTIO
+  publishConnectionDetailsTo:
+    name: kubeconfig-pounded-amp-8WWJWBL
+  writeConnectionSecretToRef:
+    name: kubeconfig-pounded-amp-8WWJWBL
+    namespace: managed-resources
