@@ -1,0 +1,21 @@
+apiVersion: containerservice.azure.upbound.io/v1beta1
+kind: KubernetesCluster
+metadata:
+  name: topped-subset-WHKZJD2
+spec:
+  forProvider:
+    kubernetesVersion: '1.25'
+    defaultNodePool:
+    - name: default
+      nodeCount: '1'
+      vmSize: Standard_D2_v2
+    dnsPrefix: pref-topped-subset-WHKZJD2
+    identity:
+    - type: SystemAssigned
+    location: West Europe
+    resourceGroupName: CloudNative-InfraMgmt-CTIO
+  publishConnectionDetailsTo:
+    name: kubeconfig-topped-subset-WHKZJD2
+  writeConnectionSecretToRef:
+    name: kubeconfig-topped-subset-WHKZJD2
+    namespace: managed-resources
