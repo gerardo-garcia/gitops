@@ -1,0 +1,21 @@
+apiVersion: containerservice.azure.upbound.io/v1beta1
+kind: KubernetesCluster
+metadata:
+  name: relaxed-area-9GJPAJM
+spec:
+  forProvider:
+    kubernetesVersion: '1.25'
+    defaultNodePool:
+    - name: default
+      nodeCount: '1'
+      vmSize: Standard_D2_v2
+    dnsPrefix: pref-relaxed-area-9GJPAJM
+    identity:
+    - type: SystemAssigned
+    location: West Europe
+    resourceGroupName: CloudNative-InfraMgmt-CTIO
+  publishConnectionDetailsTo:
+    name: kubeconfig-relaxed-area-9GJPAJM
+  writeConnectionSecretToRef:
+    name: kubeconfig-relaxed-area-9GJPAJM
+    namespace: managed-resources
