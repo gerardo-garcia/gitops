@@ -1,0 +1,425 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: osm-workflow-
+spec:
+  arguments:
+    parameters:
+    - name: git_repo
+      value: "git@gitlab.com:cloud-native-osm/shared/osm-gitops-operations.git"
+    - name: git_sshkey
+      value: "***********"
+  entrypoint: osm-workflow
+  templates:
+  - name: osm-workflow
+    steps:
+    # Block 0. Resources: PVC, configmap, secret
+    - - name: generate-volume-repos
+        template: generate-volume
+        arguments:
+          parameters:
+            - name: pvc-size
+              value: '100Mi'
+    - - name: generate-volume-resources
+        template: generate-volume
+        arguments:
+          parameters:
+            - name: pvc-size
+              value: '100Mi'
+    - - name: generate-secret
+        template: generate-secret
+    - - name: generate-configmap
+        template: generate-configmap
+    - - name: check-initialization
+        template: check-initialization
+        arguments:
+          parameters:
+            - name: pvc-repos-name
+              value: '{{steps.generate-volume-repos.outputs.parameters.pvc-name}}'
+            - name: pvc-resources-name
+              value: '{{steps.generate-volume-resources.outputs.parameters.pvc-name}}'
+            - name: configmap-name
+              value: '{{steps.generate-configmap.outputs.parameters.configmap-name}}'
+            - name: secret-name
+              value: '{{steps.generate-secret.outputs.parameters.secret-name}}'
+    # Block 1. Clone repo
+    - - name: clone
+        template: clone-repo
+        arguments:
+          parameters:
+            - name: pvc-repos-name
+              value: '{{steps.generate-volume-repos.outputs.parameters.pvc-name}}'
+            - name: pvc-resources-name
+              value: '{{steps.generate-volume-resources.outputs.parameters.pvc-name}}'
+            - name: configmap-name
+              value: '{{steps.generate-configmap.outputs.parameters.configmap-name}}'
+            - name: secret-name
+              value: '{{steps.generate-secret.outputs.parameters.secret-name}}'
+    # Block 2a. Generate message and print
+    - - name: generate-message
+        template: whalesay
+        arguments:
+          parameters:
+            - name: pvc-repos-name
+              value: '{{steps.generate-volume-repos.outputs.parameters.pvc-name}}'
+            - name: pvc-resources-name
+              value: '{{steps.generate-volume-resources.outputs.parameters.pvc-name}}'
+            - name: configmap-name
+              value: '{{steps.generate-configmap.outputs.parameters.configmap-name}}'
+            - name: secret-name
+              value: '{{steps.generate-secret.outputs.parameters.secret-name}}'
+    - - name: print-message
+        template: print-message
+        arguments:
+          parameters:
+            - name: pvc-repos-name
+              value: '{{steps.generate-volume-repos.outputs.parameters.pvc-name}}'
+            - name: pvc-resources-name
+              value: '{{steps.generate-volume-resources.outputs.parameters.pvc-name}}'
+            - name: configmap-name
+              value: '{{steps.generate-configmap.outputs.parameters.configmap-name}}'
+            - name: secret-name
+              value: '{{steps.generate-secret.outputs.parameters.secret-name}}'
+    # Block 2b. List repo
+    - - name: list-repo
+        template: list-repo
+        arguments:
+          parameters:
+            - name: pvc-repos-name
+              value: '{{steps.generate-volume-repos.outputs.parameters.pvc-name}}'
+            - name: pvc-resources-name
+              value: '{{steps.generate-volume-resources.outputs.parameters.pvc-name}}'
+            - name: configmap-name
+              value: '{{steps.generate-configmap.outputs.parameters.configmap-name}}'
+            - name: secret-name
+              value: '{{steps.generate-secret.outputs.parameters.secret-name}}'
+    # Block 2c. Get, echo, save resource list
+    - - name: get-resource-list
+        template: get-resource-list
+        arguments:
+          parameters:
+            - name: pvc-repos-name
+              value: '{{steps.generate-volume-repos.outputs.parameters.pvc-name}}'
+            - name: pvc-resources-name
+              value: '{{steps.generate-volume-resources.outputs.parameters.pvc-name}}'
+            - name: configmap-name
+              value: '{{steps.generate-configmap.outputs.parameters.configmap-name}}'
+            - name: secret-name
+              value: '{{steps.generate-secret.outputs.parameters.secret-name}}'
+            - name: resource-folder
+              value: "pre-requirements/flux/templates/sw-catalogs/infra-controllers/crossplane/controller/manifests"
+    - - name: echo-resource-list
+        template: echo-resource-list
+        arguments:
+          parameters:
+            - name: pvc-repos-name
+              value: '{{steps.generate-volume-repos.outputs.parameters.pvc-name}}'
+            - name: pvc-resources-name
+              value: '{{steps.generate-volume-resources.outputs.parameters.pvc-name}}'
+            - name: configmap-name
+              value: '{{steps.generate-configmap.outputs.parameters.configmap-name}}'
+            - name: secret-name
+              value: '{{steps.generate-secret.outputs.parameters.secret-name}}'
+            - name: message
+              value: "{{steps.get-resource-list.outputs.parameters.resource_list}}"
+    # Block 3. TODO: Commit y push
+
+  # Templates
+  - name: generate-configmap
+    serviceAccountName: argo
+    resource:
+      action: create
+      setOwnerReference: true
+      manifest: |
+        apiVersion: v1
+        kind: ConfigMap
+        metadata:
+          generateName: configmap-example-
+        data:
+          OSM_VAR1: "hello"
+          OSM_VAR2: "world"
+    outputs:
+      parameters:
+        - name: configmap-name
+          valueFrom:
+            jsonPath: '{.metadata.name}'
+
+  - name: generate-secret
+    serviceAccountName: argo
+    resource:
+      action: create
+      setOwnerReference: true
+      manifest: |
+        apiVersion: v1
+        kind: Secret
+        type: Opaque
+        metadata:
+          generateName: secret-example-
+          namespace: argo
+        data:
+          OSM_SECRET1: aGVsbG8K
+          OSM_SECRET2: d29ybGQK
+    outputs:
+      parameters:
+        - name: secret-name
+          valueFrom:
+            jsonPath: '{.metadata.name}'
+
+  - name: generate-volume
+    serviceAccountName: argo
+    inputs:
+      parameters:
+        - name: pvc-size
+    resource:
+      action: create
+      setOwnerReference: true
+      manifest: |
+        apiVersion: v1
+        kind: PersistentVolumeClaim
+        metadata:
+          generateName: pvc-osm-
+        spec:
+          accessModes: ['ReadWriteOnce']
+          resources:
+            requests:
+              storage: '{{inputs.parameters.pvc-size}}'
+    outputs:
+      parameters:
+        - name: pvc-name
+          valueFrom:
+            jsonPath: '{.metadata.name}'
+
+  - name: check-initialization
+    serviceAccountName: argo
+    inputs:
+      parameters:
+        - name: pvc-repos-name
+        - name: pvc-resources-name
+        - name: configmap-name
+        - name: secret-name
+    volumes:
+      - name: repos
+        persistentVolumeClaim:
+          claimName: '{{inputs.parameters.pvc-repos-name}}'
+      - name: resources
+        persistentVolumeClaim:
+          claimName: '{{inputs.parameters.pvc-resources-name}}'
+    container:
+      image: alpine:latest
+      command: [sh, -c]
+      args: ["ls /mnt/vol; ls /mnt/vol2; echo ${OSM_VAR1} ${OSM_VAR2}; echo ${OSM_SECRET1} ${OSM_SECRET2};"]
+      envFrom:
+      - configMapRef:
+          name: '{{inputs.parameters.configmap-name}}'
+      - secretRef:
+          name: '{{inputs.parameters.secret-name}}'
+      volumeMounts:
+      - name: repos
+        mountPath: /mnt/vol
+      - name: resources
+        mountPath: /mnt/vol2
+
+  - name: whalesay
+    serviceAccountName: argo
+    inputs:
+      parameters:
+        - name: pvc-repos-name
+        - name: pvc-resources-name
+        - name: configmap-name
+        - name: secret-name
+    volumes:
+      - name: repos
+        persistentVolumeClaim:
+          claimName: '{{inputs.parameters.pvc-repos-name}}'
+      - name: resources
+        persistentVolumeClaim:
+          claimName: '{{inputs.parameters.pvc-resources-name}}'
+    container:
+      image: docker/whalesay:latest
+      command: [sh, -c]
+      args: ["echo generating message in volume; cowsay hello world | tee /mnt/vol/hello_world.txt"]
+      envFrom:
+      - configMapRef:
+          name: '{{inputs.parameters.configmap-name}}'
+      - secretRef:
+          name: '{{inputs.parameters.secret-name}}'
+      volumeMounts:
+      - name: repos
+        mountPath: /mnt/vol
+      - name: resources
+        mountPath: /mnt/vol2
+
+  - name: print-message
+    serviceAccountName: argo
+    inputs:
+      parameters:
+        - name: pvc-repos-name
+        - name: pvc-resources-name
+        - name: configmap-name
+        - name: secret-name
+    volumes:
+      - name: repos
+        persistentVolumeClaim:
+          claimName: '{{inputs.parameters.pvc-repos-name}}'
+      - name: resources
+        persistentVolumeClaim:
+          claimName: '{{inputs.parameters.pvc-resources-name}}'
+    container:
+      image: alpine:latest
+      command: [sh, -c]
+      args: ["echo getting message from volume; find /mnt/vol; cat /mnt/vol/hello_world.txt"]
+      envFrom:
+      - configMapRef:
+          name: '{{inputs.parameters.configmap-name}}'
+      - secretRef:
+          name: '{{inputs.parameters.secret-name}}'
+      volumeMounts:
+      - name: repos
+        mountPath: /mnt/vol
+      - name: resources
+        mountPath: /mnt/vol2
+
+  - name: clone-repo
+    serviceAccountName: argo
+    inputs:
+      parameters:
+        - name: pvc-repos-name
+        - name: pvc-resources-name
+        - name: configmap-name
+        - name: secret-name
+    securityContext:
+      runAsUser: 10000
+      runAsGroup: 10000
+      fsGroup: 10000
+    volumes:
+      - name: repos
+        persistentVolumeClaim:
+          claimName: '{{inputs.parameters.pvc-repos-name}}'
+      - name: resources
+        persistentVolumeClaim:
+          claimName: '{{inputs.parameters.pvc-resources-name}}'
+    container:
+      image: gerardogarcia/osm-odu:latest
+      command: [sh, -c]
+      args: ["ls -la /app/repos; /app/scripts/clone_git_repo.sh"]
+      envFrom:
+      - configMapRef:
+          name: '{{inputs.parameters.configmap-name}}'
+      - secretRef:
+          name: '{{inputs.parameters.secret-name}}'
+      volumeMounts:
+      - name: repos
+        mountPath: /app/repos
+      - name: resources
+        mountPath: /app/resources
+      env: &env_parameters
+      - name: GIT_REPO
+        value: "{{workflow.parameters.git_repo}}"
+      - name: GIT_SSHKEY
+        value: "{{workflow.parameters.git_sshkey}}"
+      - name: GIT_REPO_FOLDER
+        value: "/app/repos/osm-gitops-operations"
+
+  - name: list-repo
+    serviceAccountName: argo
+    inputs:
+      parameters:
+        - name: pvc-repos-name
+        - name: pvc-resources-name
+        - name: configmap-name
+        - name: secret-name
+    securityContext:
+      runAsUser: 10000
+      runAsGroup: 10000
+      fsGroup: 10000
+    volumes:
+      - name: repos
+        persistentVolumeClaim:
+          claimName: '{{inputs.parameters.pvc-repos-name}}'
+      - name: resources
+        persistentVolumeClaim:
+          claimName: '{{inputs.parameters.pvc-resources-name}}'
+    container:
+      image: gerardogarcia/osm-odu:latest
+      command: [sh, -c]
+      args: ["ls -la /app; ls -la /app/repos; ls -la /app/repos/osm-gitops-operations"]
+      envFrom:
+      - configMapRef:
+          name: '{{inputs.parameters.configmap-name}}'
+      - secretRef:
+          name: '{{inputs.parameters.secret-name}}'
+      volumeMounts:
+      - name: repos
+        mountPath: /app/repos
+      - name: resources
+        mountPath: /app/resources
+
+  - name: get-resource-list
+    serviceAccountName: argo
+    inputs:
+      parameters:
+        - name: pvc-repos-name
+        - name: pvc-resources-name
+        - name: configmap-name
+        - name: secret-name
+        - name: resource-folder
+    securityContext:
+      runAsUser: 10000
+      runAsGroup: 10000
+      fsGroup: 10000
+    volumes:
+      - name: repos
+        persistentVolumeClaim:
+          claimName: '{{inputs.parameters.pvc-repos-name}}'
+      - name: resources
+        persistentVolumeClaim:
+          claimName: '{{inputs.parameters.pvc-resources-name}}'
+    container:
+      image: gerardogarcia/osm-odu:latest
+      command: [sh, -c]
+      args: ["/app/scripts/get_resource_list.sh {{inputs.parameters.resource-folder}} > /app/resources/resource_list.yaml"]
+      volumeMounts:
+      - name: repos
+        mountPath: /app/repos
+      - name: resources
+        mountPath: /app/resources
+      envFrom:
+      - configMapRef:
+          name: '{{inputs.parameters.configmap-name}}'
+      - secretRef:
+          name: '{{inputs.parameters.secret-name}}'
+    outputs:
+      parameters:
+      - name: resource_list  # name of output parameter
+        valueFrom:
+          path: /app/resources/resource_list.yaml # set the value of resource-list
+
+  - name: echo-resource-list
+    serviceAccountName: argo
+    inputs:
+      parameters:
+        - name: pvc-repos-name
+        - name: pvc-resources-name
+        - name: configmap-name
+        - name: secret-name
+        - name: message
+    securityContext:
+      runAsUser: 10000
+      runAsGroup: 10000
+      fsGroup: 10000
+    volumes:
+      - name: repos
+        persistentVolumeClaim:
+          claimName: '{{inputs.parameters.pvc-repos-name}}'
+      - name: resources
+        persistentVolumeClaim:
+          claimName: '{{inputs.parameters.pvc-resources-name}}'
+    container:
+      image: gerardogarcia/osm-odu:latest
+      command: ["echo"]
+      args: ["{{inputs.parameters.message}}"]
+      volumeMounts:                     # same syntax as k8s Pod spec
+      - name: repos
+        mountPath: /app/repos
+      - name: resources
+        mountPath: /app/resources
