@@ -19,17 +19,18 @@ if [ -n "${LOCAL_TEST_FLAG}" ]; then
 fi
 
 
-if [ -n "${GIT_SSHKEY}" ] && [ -z "${LOCAL_TEST_FLAG}" ]; then
-    write_sshkey
-    GIT_HOST=$(get_host ${GIT_REPO})
-    ssh-keyscan ${GIT_HOST} >> $HOME/.ssh/known_hosts
-fi
+# if [ -n "${GIT_SSHKEY}" ] || [ -d "$HOME/.ssh/" ] && [ -z "${LOCAL_TEST_FLAG}" ]; then
+    # write_sshkey
+    # GIT_HOST=$(get_host ${GIT_REPO})
+    # ssh-keyscan ${GIT_HOST} >> $HOME/.ssh/known_hosts
+# fi
 
 echo "Cloning Git repo ${GIT_REPO} into ${REPO_FOLDER}"
-if [ -n "${GIT_SSHKEY}" ]; then
-    git clone ${GIT_REPO} ${REPO_FOLDER}
-elif [ -n "${GIT_PASSWORD}" ]; then
+if [ -n "${GIT_PASSWORD}" ]; then
     sshpass -p ${GIT_PASSWORD} git clone ${GIT_REPO} ${REPO_FOLDER}
+elif [ -d "$HOME/.ssh/" ] || [ -n "${GIT_SSHKEY}" ]; then
+    export GIT_SSH_COMMAND="ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no"
+    git clone ${GIT_REPO} ${REPO_FOLDER}
 else
     git clone ${GIT_REPO} ${REPO_FOLDER}
 fi
