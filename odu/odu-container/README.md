@@ -73,11 +73,18 @@ In order to create configmaps and secrets, as part of an Argo Workflow, a role m
 ## Usage
 
 ```bash
-kubectl -n argo get workflows
-kubectl -n argo get workflowtemplates
-kubectl get workflowtemplates
-kubectl -n argo get pvc
-kubectl -n argo get pv
+# Create a secret to store your SSH key
+kubectl -n argo create secret generic git-secret --from-file=id_rsa=$HOME/.ssh/id_rsa
 
+# Upload templates
+
+# List templates and workflows
+kubectl -n argo get workflowtemplates
+kubectl -n argo get workflows
+
+# Run main workflow
 kubectl -n argo create -f osm-workflow.yaml
+
+# Check resources created by the workflows
+kubectl -n argo get pv,pvc,configmaps,secrets
 ```

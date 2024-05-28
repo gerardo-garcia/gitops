@@ -2,13 +2,16 @@ apiVersion: argoproj.io/v1alpha1
 kind: Workflow
 metadata:
   generateName: osm-workflow-
+  annotations:
+    workflows.argoproj.io/description: |
+      OSM workflow
 spec:
   arguments:
     parameters:
-    - name: git_repo
-      value: "git@gitlab.com:cloud-native-osm/shared/osm-gitops-operations.git"
-    - name: git_sshkey
-      value: "***********"
+    - name: git-secret
+      value: "git-secret"
+    # - name: operation-id
+    #   value: "operation-id-9041902348124"
   entrypoint: osm-workflow
   templates:
   - name: osm-workflow
@@ -42,8 +45,12 @@ spec:
               value: '{{steps.generate-configmap.outputs.parameters.configmap-name}}'
             - name: secret-name
               value: '{{steps.generate-secret.outputs.parameters.secret-name}}'
+    - - name: generate-operation-id
+        template: gen-random-int-bash
+    - - name: generate-random-name
+        template: gen-random-name-python
     # Block 1. Clone repo
-    - - name: clone
+    - - name: clone-repo1
         template: clone-repo
         arguments:
           parameters:
@@ -55,6 +62,26 @@ spec:
               value: '{{steps.generate-configmap.outputs.parameters.configmap-name}}'
             - name: secret-name
               value: '{{steps.generate-secret.outputs.parameters.secret-name}}'
+            - name: git-repo
+              value: "git@gitlab.com:cloud-native-osm/shared/osm-gitops-operations.git"
+            - name: git-folder
+              value: "/app/repos/osm-gitops-operations"
+    - - name: clone-repo2
+        template: clone-repo
+        arguments:
+          parameters:
+            - name: pvc-repos-name
+              value: '{{steps.generate-volume-repos.outputs.parameters.pvc-name}}'
+            - name: pvc-resources-name
+              value: '{{steps.generate-volume-resources.outputs.parameters.pvc-name}}'
+            - name: configmap-name
+              value: '{{steps.generate-configmap.outputs.parameters.configmap-name}}'
+            - name: secret-name
+              value: '{{steps.generate-secret.outputs.parameters.secret-name}}'
+            - name: git-repo
+              value: "git@github.com:gerardo-garcia/gitops.git"
+            - name: git-folder
+              value: "/app/repos/gitops"
     # Block 2a. Generate message and print
     - - name: generate-message
         template: whalesay
@@ -93,6 +120,8 @@ spec:
               value: '{{steps.generate-configmap.outputs.parameters.configmap-name}}'
             - name: secret-name
               value: '{{steps.generate-secret.outputs.parameters.secret-name}}'
+            - name: git-folder
+              value: "/app/repos/osm-gitops-operations"
     # Block 2c. Get, echo, save resource list
     - - name: get-resource-list
         template: get-resource-list
@@ -106,8 +135,13 @@ spec:
               value: '{{steps.generate-configmap.outputs.parameters.configmap-name}}'
             - name: secret-name
               value: '{{steps.generate-secret.outputs.parameters.secret-name}}'
+            - name: operation-id
+              value: '{{steps.generate-operation-id.outputs.result}}'
+              # value: '{{workflow.parameters.operation-id}}'
+            - name: git-folder
+              value: "/app/repos/gitops"
             - name: resource-folder
-              value: "pre-requirements/flux/templates/sw-catalogs/infra-controllers/crossplane/controller/manifests"
+              value: "sw-catalogs/cluster-aks/cluster.yaml"
     - - name: echo-resource-list
         template: echo-resource-list
         arguments:
@@ -120,9 +154,42 @@ spec:
               value: '{{steps.generate-configmap.outputs.parameters.configmap-name}}'
             - name: secret-name
               value: '{{steps.generate-secret.outputs.parameters.secret-name}}'
-            - name: message
+            - name: operation-id
+              value: '{{steps.generate-operation-id.outputs.result}}'
+              # value: '{{workflow.parameters.operation-id}}'
+            - name: input-resource-list
               value: "{{steps.get-resource-list.outputs.parameters.resource_list}}"
-    # Block 3. TODO: Commit y push
+          # artifacts:
+          #   - name: input-resource-list
+          #     from: "{{steps.get-resource-list.outputs.artifacts.resource_list}}"
+    - - name: save-resource-list
+        template: save-resource-list
+        arguments:
+          parameters:
+            - name: pvc-repos-name
+              value: '{{steps.generate-volume-repos.outputs.parameters.pvc-name}}'
+            - name: pvc-resources-name
+              value: '{{steps.generate-volume-resources.outputs.parameters.pvc-name}}'
+            - name: configmap-name
+              value: '{{steps.generate-configmap.outputs.parameters.configmap-name}}'
+            - name: secret-name
+              value: '{{steps.generate-secret.outputs.parameters.secret-name}}'
+            - name: operation-id
+              value: '{{steps.generate-operation-id.outputs.result}}'
+              # value: '{{workflow.parameters.operation-id}}'
+            - name: input-resource-list
+              value: '{{steps.echo-resource-list.outputs.parameters.resource_list}}'
+            - name: git-folder
+              value: "/app/repos/gitops"
+            - name: destination-folder
+              value: "managed-resources/clusters/{{steps.generate-random-name.outputs.result}}"
+            - name: destination-file
+              value: "cluster.yaml"
+          # artifacts:
+          #   - name: input-resource-list
+          #     from: "{{steps.echo-resource-list.outputs.artifacts.resource_list}}"
+    # Block 3. Commit and push
+    # TODO
 
   # Templates
   - name: generate-configmap
@@ -219,6 +286,26 @@ spec:
       - name: resources
         mountPath: /mnt/vol2
 
+  - name: gen-random-int-bash
+    serviceAccountName: argo
+    script:
+      image: alpine:3.19.1
+      command: ["sh"]
+      source: |
+        cat /dev/urandom | tr -cd 'a-f0-9' | head -c 20
+
+  - name: gen-random-name-python
+    serviceAccountName: argo
+    script:
+      image: gerardogarcia/python:3.10
+      command: [python]
+      source: |
+        import string
+        import random
+        import randomname
+        random_name = randomname.get_name() + "-" + "".join(random.choices(string.ascii_uppercase + string.digits, k=7))
+        print(random_name)
+
   - name: whalesay
     serviceAccountName: argo
     inputs:
@@ -287,6 +374,8 @@ spec:
         - name: pvc-resources-name
         - name: configmap-name
         - name: secret-name
+        - name: git-repo
+        - name: git-folder
     securityContext:
       runAsUser: 10000
       runAsGroup: 10000
@@ -298,6 +387,9 @@ spec:
       - name: resources
         persistentVolumeClaim:
           claimName: '{{inputs.parameters.pvc-resources-name}}'
+      - name: git-secret
+        secret:
+          secretName: '{{workflow.parameters.git-secret}}'
     container:
       image: gerardogarcia/osm-odu:latest
       command: [sh, -c]
@@ -312,13 +404,13 @@ spec:
         mountPath: /app/repos
       - name: resources
         mountPath: /app/resources
+      - name: git-secret
+        mountPath: "/app/.ssh"
       env: &env_parameters
       - name: GIT_REPO
-        value: "{{workflow.parameters.git_repo}}"
-      - name: GIT_SSHKEY
-        value: "{{workflow.parameters.git_sshkey}}"
+        value: '{{inputs.parameters.git-repo}}'
       - name: GIT_REPO_FOLDER
-        value: "/app/repos/osm-gitops-operations"
+        value: '{{inputs.parameters.git-folder}}'
 
   - name: list-repo
     serviceAccountName: argo
@@ -328,6 +420,7 @@ spec:
         - name: pvc-resources-name
         - name: configmap-name
         - name: secret-name
+        - name: git-folder
     securityContext:
       runAsUser: 10000
       runAsGroup: 10000
@@ -342,12 +435,15 @@ spec:
     container:
       image: gerardogarcia/osm-odu:latest
       command: [sh, -c]
-      args: ["ls -la /app; ls -la /app/repos; ls -la /app/repos/osm-gitops-operations"]
+      args: ["ls -la ${REPO_FOLDER}; ls -la ${REPO_FOLDER}/..; ls -la ${REPO_FOLDER}/../.."]
       envFrom:
       - configMapRef:
           name: '{{inputs.parameters.configmap-name}}'
       - secretRef:
           name: '{{inputs.parameters.secret-name}}'
+      env: &env_parameters
+      - name: REPO_FOLDER
+        value: "{{inputs.parameters.git-folder}}"
       volumeMounts:
       - name: repos
         mountPath: /app/repos
@@ -362,7 +458,17 @@ spec:
         - name: pvc-resources-name
         - name: configmap-name
         - name: secret-name
+        - name: operation-id
+        - name: git-folder
         - name: resource-folder
+    outputs:
+      parameters:
+        - name: resource_list
+          valueFrom:
+            path: /tmp/resource_list.yaml
+      # artifacts:
+      #   - name: resource_list  # name of artifact
+      #     path: /tmp/resource_list.yaml # path
     securityContext:
       runAsUser: 10000
       runAsGroup: 10000
@@ -377,7 +483,7 @@ spec:
     container:
       image: gerardogarcia/osm-odu:latest
       command: [sh, -c]
-      args: ["/app/scripts/get_resource_list.sh {{inputs.parameters.resource-folder}} > /app/resources/resource_list.yaml"]
+      args: ["/app/scripts/get_resource_list.sh {{inputs.parameters.resource-folder}} {{inputs.parameters.git-folder}} > /tmp/resource_list.yaml"]
       volumeMounts:
       - name: repos
         mountPath: /app/repos
@@ -388,11 +494,6 @@ spec:
           name: '{{inputs.parameters.configmap-name}}'
       - secretRef:
           name: '{{inputs.parameters.secret-name}}'
-    outputs:
-      parameters:
-      - name: resource_list  # name of output parameter
-        valueFrom:
-          path: /app/resources/resource_list.yaml # set the value of resource-list
 
   - name: echo-resource-list
     serviceAccountName: argo
@@ -402,7 +503,19 @@ spec:
         - name: pvc-resources-name
         - name: configmap-name
         - name: secret-name
-        - name: message
+        - name: operation-id
+        - name: input-resource-list
+      # artifacts:
+      #   - name: input-resource-list
+      #     path: /tmp/input_resource_list.yaml
+    outputs:
+      parameters:
+        - name: resource_list
+          valueFrom:
+            path: /tmp/resource_list.yaml
+      # artifacts:
+      # - name: resource_list  # name of artifact
+      #   path: /tmp/resource_list.yaml # path
     securityContext:
       runAsUser: 10000
       runAsGroup: 10000
@@ -416,8 +529,48 @@ spec:
           claimName: '{{inputs.parameters.pvc-resources-name}}'
     container:
       image: gerardogarcia/osm-odu:latest
-      command: ["echo"]
-      args: ["{{inputs.parameters.message}}"]
+      command: [sh, -c]
+      args: ["echo '{{inputs.parameters.input-resource-list}}' > /tmp/resource_list.yaml"]
+      volumeMounts:                     # same syntax as k8s Pod spec
+      - name: repos
+        mountPath: /app/repos
+      - name: resources
+        mountPath: /app/resources
+
+  - name: save-resource-list
+    serviceAccountName: argo
+    inputs:
+      parameters:
+        - name: pvc-repos-name
+        - name: pvc-resources-name
+        - name: configmap-name
+        - name: secret-name
+        - name: operation-id
+        - name: input-resource-list
+        - name: git-folder
+        - name: destination-folder
+        - name: destination-file
+      # artifacts:
+      #   - name: input-resource-list
+      #     path: /tmp/input_resource_list.yaml
+    securityContext:
+      runAsUser: 10000
+      runAsGroup: 10000
+      fsGroup: 10000
+    volumes:
+      - name: repos
+        persistentVolumeClaim:
+          claimName: '{{inputs.parameters.pvc-repos-name}}'
+      - name: resources
+        persistentVolumeClaim:
+          claimName: '{{inputs.parameters.pvc-resources-name}}'
+    container:
+      image: gerardogarcia/osm-odu:latest
+      command: [sh, -c]
+      # args: ["echo {{inputs.parameters.destination-file}}; echo {{inputs.parameters.operation-id}}"]
+      args: ["mkdir -p {{inputs.parameters.git-folder}}/{{inputs.parameters.destination-folder}}; echo '{{inputs.parameters.input-resource-list}}' > {{inputs.parameters.git-folder}}/{{inputs.parameters.destination-folder}}/{{inputs.parameters.destination-file}}; ls {{inputs.parameters.git-folder}}/{{inputs.parameters.destination-folder}}"]
+      # command: ["echo"]
+      # args: ["{{inputs.parameters.message}} > {{inputs.parameters.destination-file}}"]
       volumeMounts:                     # same syntax as k8s Pod spec
       - name: repos
         mountPath: /app/repos
