@@ -1,0 +1,20 @@
+fire==0.5.0
+    # via randomname
+gitdb==4.0.11
+    # via gitpython
+gitpython==3.1.41
+    # via -r requirements.in
+jsonpatch==1.33
+    # via -r requirements.in
+jsonpointer==2.4
+    # via jsonpatch
+pyyaml==6.0.1
+    # via -r requirements.in
+randomname==0.2.1
+    # via -r requirements.in
+six==1.16.0
+    # via fire
+smmap==5.0.1
+    # via gitdb
+termcolor==2.4.0
+    # via fire
