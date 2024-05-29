@@ -14,9 +14,9 @@ spec:
     defaultNodePool:
     - name: default
       nodeCount: 1
-      # nodeCount: ${node_count}
-      # vmSize: Standard_D2_v2
+      # nodeCount: node_count
       vmSize: Standard_D2_v2
+      # vmSize: vmSize
     # dnsPrefix: pref-myakscluster01
     dnsPrefix: pref-clustername
     identity:
