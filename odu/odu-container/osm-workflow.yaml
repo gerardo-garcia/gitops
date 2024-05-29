@@ -10,6 +10,8 @@ spec:
     parameters:
     - name: git-secret
       value: "git-secret"
+    - name: git-configmap
+      value: "git-config"
     # - name: operation-id
     #   value: "operation-id-9041902348124"
   entrypoint: osm-workflow
@@ -189,7 +191,24 @@ spec:
           #   - name: input-resource-list
           #     from: "{{steps.echo-resource-list.outputs.artifacts.resource_list}}"
     # Block 3. Commit and push
-    # TODO
+    - - name: commit-and-push-repo
+        template: commit-and-push-repo
+        arguments:
+          parameters:
+            - name: pvc-repos-name
+              value: '{{steps.generate-volume-repos.outputs.parameters.pvc-name}}'
+            - name: pvc-resources-name
+              value: '{{steps.generate-volume-resources.outputs.parameters.pvc-name}}'
+            - name: configmap-name
+              value: '{{steps.generate-configmap.outputs.parameters.configmap-name}}'
+            - name: secret-name
+              value: '{{steps.generate-secret.outputs.parameters.secret-name}}'
+            - name: operation-id
+              value: '{{steps.generate-operation-id.outputs.result}}'
+            - name: git-folder
+              value: "/app/repos/gitops"
+            - name: resource-folder
+              value: "managed-resources/clusters/{{steps.generate-random-name.outputs.result}}"
 
   # Templates
   - name: generate-configmap
@@ -576,3 +595,57 @@ spec:
         mountPath: /app/repos
       - name: resources
         mountPath: /app/resources
+
+  - name: commit-and-push-repo
+    serviceAccountName: argo
+    inputs:
+      parameters:
+        - name: pvc-repos-name
+        - name: pvc-resources-name
+        - name: configmap-name
+        - name: secret-name
+        - name: operation-id
+        - name: git-folder
+        - name: resource-folder
+      # artifacts:
+      #   - name: resource_list  # name of artifact
+      #     path: /tmp/resource_list.yaml # path
+    securityContext:
+      runAsUser: 10000
+      runAsGroup: 10000
+      fsGroup: 10000
+    volumes:
+      - name: repos
+        persistentVolumeClaim:
+          claimName: '{{inputs.parameters.pvc-repos-name}}'
+      - name: resources
+        persistentVolumeClaim:
+          claimName: '{{inputs.parameters.pvc-resources-name}}'
+      - name: git-secret
+        secret:
+          secretName: '{{workflow.parameters.git-secret}}'
+    container:
+      image: gerardogarcia/osm-odu:latest
+      command: [sh, -c]
+      args: ["/app/scripts/commit_and_push.sh"]
+      volumeMounts:
+      - name: repos
+        mountPath: /app/repos
+      - name: resources
+        mountPath: /app/resources
+      - name: git-secret
+        mountPath: "/app/.ssh"
+      envFrom:
+      - configMapRef:
+          name: '{{inputs.parameters.configmap-name}}'
+      - secretRef:
+          name: '{{inputs.parameters.secret-name}}'
+      - configMapRef:
+          name: '{{workflow.parameters.git-configmap}}'
+      env:
+      - name: GIT_REPO_FOLDER
+        value: '{{inputs.parameters.git-folder}}'
+      - name: GIT_BRANCH
+        value: 'op-{{inputs.parameters.operation-id}}'
+      - name: RESOURCE_FOLDER
+        value: '{{inputs.parameters.resource-folder}}'
