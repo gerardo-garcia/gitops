@@ -29,7 +29,7 @@ git status
 
 echo "Merge branch ${GIT_BRANCH} onto ${GIT_MAIN_BRANCH}"
 git checkout ${GIT_MAIN_BRANCH}
-git merge ${GIT_BRANCH}
+git merge --no-ff ${GIT_BRANCH}
 
 echo "Push"
 if [ -n "${GIT_PASSWORD}" ]; then
