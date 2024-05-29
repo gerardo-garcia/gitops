@@ -73,8 +73,12 @@ In order to create configmaps and secrets, as part of an Argo Workflow, a role m
 ## Usage
 
 ```bash
-# Create a secret to store your SSH key
-kubectl -n argo create secret generic git-secret --from-file=id_rsa=$HOME/.ssh/id_rsa
+# Create a secret to store your SSH key to be used for git
+GIT_SSHKEY_FILE="$HOME/.ssh/id_rsa"
+kubectl -n argo create secret generic git-secret --from-file=id_rsa="${GIT_SSHKEY_FILE}"
+GIT_USER_NAME="gerardo-garcia"
+GIT_USER_EMAIL="gerardo-garcia@users.noreply.github.com"
+kubectl -n argo create configmap git-config --from-literal=GIT_USER_NAME="${GIT_USER_NAME}" --from-literal=GIT_USER_EMAIL="${GIT_USER_EMAIL}"
 
 # Upload templates
 
