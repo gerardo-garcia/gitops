@@ -649,3 +649,7 @@ spec:
         value: 'op-{{inputs.parameters.operation-id}}'
       - name: RESOURCE_FOLDER
         value: '{{inputs.parameters.resource-folder}}'
+      - name: GIT_MAIN_BRANCH
+        value: 'main'
+      - name: COMMIT_MESSAGE
+        value: 'Test commit message'

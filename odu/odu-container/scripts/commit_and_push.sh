@@ -24,11 +24,22 @@ echo "Creating commit"
 git status
 git add ${RESOURCE_FOLDER}
 git status
-git commit -s -m "Operation ${GIT_BRANCH}: ${COMMIT_MESSAGE}"
+git commit -m "Operation ${GIT_BRANCH}: ${COMMIT_MESSAGE}"
 git status
 
 echo "Merge branch ${GIT_BRANCH} onto ${GIT_MAIN_BRANCH}"
 git checkout ${GIT_MAIN_BRANCH}
+
+echo "Pulling Git repo"
+if [ -n "${GIT_PASSWORD}" ]; then
+    sshpass -p ${GIT_PASSWORD} git pull
+elif [ -d "$HOME/.ssh/" ] || [ -n "${GIT_SSHKEY}" ]; then
+    export GIT_SSH_COMMAND="ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no"
+    git pull
+else
+    git pull
+fi
+
 git merge --no-ff ${GIT_BRANCH}
 
 echo "Push"
