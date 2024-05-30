@@ -51,7 +51,7 @@ spec:
         template: gen-random-int-bash
     - - name: generate-random-name
         template: gen-random-name-python
-    # Block 1. Clone repo
+    # Block 1. Clone repos
     - - name: clone-repo1
         template: clone-repo
         arguments:
