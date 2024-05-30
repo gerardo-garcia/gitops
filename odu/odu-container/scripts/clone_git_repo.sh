@@ -18,7 +18,6 @@ if [ -n "${LOCAL_TEST_FLAG}" ]; then
     REPO_FOLDER=$(mktemp -t -d odu.XXXXXXXX)
 fi
 
-
 # if [ -n "${GIT_SSHKEY}" ] || [ -d "$HOME/.ssh/" ] && [ -z "${LOCAL_TEST_FLAG}" ]; then
     # write_sshkey
     # GIT_HOST=$(get_host ${GIT_REPO})
