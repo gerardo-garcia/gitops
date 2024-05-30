@@ -1,0 +1,33 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: list-repo-template
+spec:
+  serviceAccountName: argo
+  entrypoint: list-repo
+  templates:
+    - name: list-repo
+      serviceAccountName: argo
+      inputs:
+        parameters:
+          - name: pvc-repos-name
+          - name: git-folder
+      securityContext:
+        runAsUser: 10000
+        runAsGroup: 10000
+        fsGroup: 10000
+      volumes:
+        - name: repos
+          persistentVolumeClaim:
+            claimName: '{{inputs.parameters.pvc-repos-name}}'
+      container:
+        image: gerardogarcia/osm-odu:latest
+        command: [sh, -c]
+        args: ["ls -la ${REPO_FOLDER}; ls -la ${REPO_FOLDER}/..; ls -la ${REPO_FOLDER}/../.."]
+        env:
+        - name: REPO_FOLDER
+          value: "{{inputs.parameters.git-folder}}"
+        volumeMounts:
+        - name: repos
+          mountPath: /app/repos
+

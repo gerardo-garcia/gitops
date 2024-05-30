@@ -1,0 +1,60 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: generate-and-print-message-via-volume-template
+spec:
+  serviceAccountName: argo
+  entrypoint: generate-and-print-message-via-volume
+  templates:
+    - name: generate-and-print-message-via-volume
+      inputs:
+        parameters:
+          - name: pvc-name
+      steps:
+      - - name: generate-message-in-volume
+          template: generate-message-in-volume
+          arguments:
+            parameters:
+            - name: pvc-name
+              value: "{{inputs.parameters.pvc-name}}"
+      - - name: print-message-from-volume
+          template: print-message-from-volume
+          arguments:
+            parameters:
+            - name: pvc-name
+              value: "{{inputs.parameters.pvc-name}}"
+
+    # Templates
+    - name: generate-message-in-volume
+      serviceAccountName: argo
+      inputs:
+        parameters:
+        - name: pvc-name
+      volumes:
+        - name: workdir
+          persistentVolumeClaim:
+            claimName: '{{inputs.parameters.pvc-name}}'
+      container:
+        image: docker/whalesay:latest
+        command: [sh, -c]
+        args: ["echo generating message in volume; cowsay hello world | tee /mnt/vol/hello_world.txt"]
+        volumeMounts:
+        - name: workdir
+          mountPath: /mnt/vol
+
+    - name: print-message-from-volume
+      serviceAccountName: argo
+      inputs:
+        parameters:
+        - name: pvc-name
+      volumes:
+        - name: workdir
+          persistentVolumeClaim:
+            claimName: '{{inputs.parameters.pvc-name}}'
+      container:
+        image: alpine:latest
+        command: [sh, -c]
+        args: ["echo getting message from volume; find /mnt/vol; cat /mnt/vol/hello_world.txt"]
+        volumeMounts:
+        - name: workdir
+          mountPath: /mnt/vol

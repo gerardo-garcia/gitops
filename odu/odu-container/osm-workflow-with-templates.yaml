@@ -1,0 +1,150 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: osm-workflow-with-templates-
+  annotations:
+    workflows.argoproj.io/description: |
+      OSM workflow with templates
+spec:
+  arguments:
+    parameters:
+    - name: git-secret
+      value: "git-secret"
+    - name: git-configmap
+      value: "git-config"
+    # - name: operation-id
+    #   value: "operation-id-9041902348124"
+  entrypoint: osm-workflow
+  templates:
+  - name: osm-workflow
+    steps:
+    - - name: generate-operation-id
+        template: gen-random-int-bash
+    - - name: generate-random-name
+        template: gen-random-name-python
+    # Block 0. Resources: PVC, configmap, secret
+    - - name: resource-initialization
+        templateRef:
+          name: resource-initialization-template
+          template: resource-initialization
+    # Block 1. Clone repos
+    - - name: clone-repo
+        templateRef:
+          name: clone-repo-template
+          template: clone-repo
+        arguments:
+          parameters:
+            - name: pvc-repos-name
+              value: '{{steps.resource-initialization.outputs.parameters.pvc-repos-name}}'
+            - name: pvc-resources-name
+              value: '{{steps.resource-initialization.outputs.parameters.pvc-resources-name}}'
+            - name: configmap-name
+              value: '{{steps.resource-initialization.outputs.parameters.configmap-name}}'
+            - name: secret-name
+              value: '{{steps.resource-initialization.outputs.parameters.secret-name}}'
+            - name: git-repo
+              value: "git@github.com:gerardo-garcia/gitops.git"
+            - name: git-folder
+              value: "/app/repos/gitops"
+            - name: git-secret
+              value: '{{workflow.parameters.git-secret}}'
+    # Block 2a. Generate message and print
+    - - name: generate-and-print-message
+        templateRef:
+          name: generate-and-print-message-template
+          template: generate-and-print-message
+    # Block 2b. Generate message and print via a volume
+    - - name: generate-and-print-message-via-volume
+        templateRef:
+          name: generate-and-print-message-via-volume-template
+          template: generate-and-print-message-via-volume
+        arguments:
+          parameters:
+            - name: pvc-name
+              value: '{{steps.resource-initialization.outputs.parameters.pvc-resources-name}}'
+    # Block 2c. List repo
+    - - name: list-repo
+        templateRef:
+          name: list-repo-template
+          template: list-repo
+        arguments:
+          parameters:
+            - name: pvc-repos-name
+              value: '{{steps.resource-initialization.outputs.parameters.pvc-repos-name}}'
+            - name: git-folder
+              value: "/app/repos/gitops"
+    # Block 2d. Get, echo, save resource list
+    - - name: get-echo-save-resource-list
+        templateRef:
+          name: get-echo-save-resource-list-template
+          template: get-echo-save-resource-list
+        arguments:
+          parameters:
+            - name: pvc-repos-name
+              value: '{{steps.resource-initialization.outputs.parameters.pvc-repos-name}}'
+            - name: pvc-resources-name
+              value: '{{steps.resource-initialization.outputs.parameters.pvc-resources-name}}'
+            - name: configmap-name
+              value: '{{steps.resource-initialization.outputs.parameters.configmap-name}}'
+            - name: secret-name
+              value: '{{steps.resource-initialization.outputs.parameters.secret-name}}'
+            - name: operation-id
+              value: '{{steps.generate-operation-id.outputs.result}}'
+              # value: '{{workflow.parameters.operation-id}}'
+            - name: git-repo-base-folder
+              value: "/app/repos/gitops"
+            - name: source-folder
+              value: "sw-catalogs/cluster-aks/cluster.yaml"
+            - name: destination-folder
+              value: "managed-resources/clusters/{{steps.generate-random-name.outputs.result}}"
+            - name: destination-file
+              value: "cluster.yaml"
+    # Block 3. Commit and push
+    - - name: commit-and-push-repo
+        templateRef:
+          name: commit-and-push-repo-template
+          template: clone-repo
+          template: commit-and-push-repo
+        arguments:
+          parameters:
+            - name: pvc-repos-name
+              value: '{{steps.resource-initialization.outputs.parameters.pvc-repos-name}}'
+            - name: pvc-resources-name
+              value: '{{steps.resource-initialization.outputs.parameters.pvc-resources-name}}'
+            - name: configmap-name
+              value: '{{steps.resource-initialization.outputs.parameters.configmap-name}}'
+            - name: secret-name
+              value: '{{steps.resource-initialization.outputs.parameters.secret-name}}'
+            - name: operation-id
+              value: '{{steps.generate-operation-id.outputs.result}}'
+            - name: git-folder
+              value: "/app/repos/gitops"
+            - name: git-secret
+              value: '{{workflow.parameters.git-secret}}'
+            - name: resource-folder
+              value: "managed-resources/clusters/{{steps.generate-random-name.outputs.result}}"
+            - name: git-main-branch
+              value: "main"
+            - name: commit-message
+              value: 'Test commit message for operation {{steps.generate-operation-id.outputs.result}}'
+
+  # Templates
+  - name: gen-random-int-bash
+    serviceAccountName: argo
+    script:
+      image: alpine:3.19.1
+      command: ["sh"]
+      source: |
+        cat /dev/urandom | tr -cd 'a-f0-9' | head -c 20
+
+  - name: gen-random-name-python
+    serviceAccountName: argo
+    script:
+      image: gerardogarcia/python:3.10
+      command: [python]
+      source: |
+        import string
+        import random
+        import randomname
+        random_name = randomname.get_name() + "-" + "".join(random.choices(string.ascii_uppercase + string.digits, k=7))
+        print(random_name)

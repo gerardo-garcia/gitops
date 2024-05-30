@@ -1,0 +1,65 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: commit-and-push-repo-template
+spec:
+  serviceAccountName: argo
+  entrypoint: commit-and-push-repo
+  templates:
+    - name: commit-and-push-repo
+      serviceAccountName: argo
+      inputs:
+        parameters:
+          - name: pvc-repos-name
+          - name: pvc-resources-name
+          - name: configmap-name
+          - name: secret-name
+          - name: operation-id
+          - name: git-folder
+          - name: git-secret
+          - name: resource-folder
+          - name: git-main-branch
+          - name: commit-message
+      securityContext:
+        runAsUser: 10000
+        runAsGroup: 10000
+        fsGroup: 10000
+      volumes:
+        - name: repos
+          persistentVolumeClaim:
+            claimName: '{{inputs.parameters.pvc-repos-name}}'
+        - name: resources
+          persistentVolumeClaim:
+            claimName: '{{inputs.parameters.pvc-resources-name}}'
+        - name: git-secret
+          secret:
+            secretName: '{{inputs.parameters.git-secret}}'
+      container:
+        image: gerardogarcia/osm-odu:latest
+        command: [sh, -c]
+        args: ["/app/scripts/commit_and_push.sh"]
+        volumeMounts:
+        - name: repos
+          mountPath: /app/repos
+        - name: resources
+          mountPath: /app/resources
+        - name: git-secret
+          mountPath: "/app/.ssh"
+        envFrom:
+        - configMapRef:
+            name: '{{inputs.parameters.configmap-name}}'
+        - secretRef:
+            name: '{{inputs.parameters.secret-name}}'
+        - configMapRef:
+            name: '{{workflow.parameters.git-configmap}}'
+        env:
+        - name: GIT_REPO_FOLDER
+          value: '{{inputs.parameters.git-folder}}'
+        - name: GIT_BRANCH
+          value: 'op-{{inputs.parameters.operation-id}}'
+        - name: RESOURCE_FOLDER
+          value: '{{inputs.parameters.resource-folder}}'
+        - name: GIT_MAIN_BRANCH
+          value: '{{inputs.parameters.git-main-branch}}'
+        - name: COMMIT_MESSAGE
+          value: '{{inputs.parameters.commit-message}}'

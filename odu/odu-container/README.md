@@ -81,13 +81,17 @@ GIT_USER_EMAIL="gerardo-garcia@users.noreply.github.com"
 kubectl -n argo create configmap git-config --from-literal=GIT_USER_NAME="${GIT_USER_NAME}" --from-literal=GIT_USER_EMAIL="${GIT_USER_EMAIL}"
 
 # Upload templates
+kubectl -n argo apply -f workflowtemplates
 
 # List templates and workflows
 kubectl -n argo get workflowtemplates
 kubectl -n argo get workflows
 
-# Run main workflow
+# Run workflow not based on containers
 kubectl -n argo create -f osm-workflow.yaml
+
+# Run workflow based on containers
+kubectl -n argo create -f osm-workflow-with-templates.yaml
 
 # Check resources created by the workflows
 kubectl -n argo get pv,pvc,configmaps,secrets

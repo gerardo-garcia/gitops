@@ -1,0 +1,146 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: resource-initialization-template
+spec:
+  serviceAccountName: argo
+  entrypoint: resource-initialization
+  templates:
+    - name: resource-initialization
+      steps:
+      - - name: generate-volume-repos
+          template: generate-volume
+          arguments:
+            parameters:
+              - name: pvc-size
+                value: '100Mi'
+      - - name: generate-volume-resources
+          template: generate-volume
+          arguments:
+            parameters:
+              - name: pvc-size
+                value: '100Mi'
+      - - name: generate-secret
+          template: generate-secret
+      - - name: generate-configmap
+          template: generate-configmap
+      - - name: check-initialization
+          template: check-initialization
+          arguments:
+            parameters:
+              - name: pvc-repos-name
+                value: '{{steps.generate-volume-repos.outputs.parameters.pvc-name}}'
+              - name: pvc-resources-name
+                value: '{{steps.generate-volume-resources.outputs.parameters.pvc-name}}'
+              - name: configmap-name
+                value: '{{steps.generate-configmap.outputs.parameters.configmap-name}}'
+              - name: secret-name
+                value: '{{steps.generate-secret.outputs.parameters.secret-name}}'
+      outputs:
+        parameters:
+          - name: "pvc-repos-name"
+            valueFrom:
+              parameter: "{{steps.generate-volume-repos.outputs.parameters.pvc-name}}"
+          - name: "pvc-resources-name"
+            valueFrom:
+              parameter: "{{steps.generate-volume-resources.outputs.parameters.pvc-name}}"
+          - name: "configmap-name"
+            valueFrom:
+              parameter: "{{steps.generate-configmap.outputs.parameters.configmap-name}}"
+          - name: "secret-name"
+            valueFrom:
+              parameter: "{{steps.generate-secret.outputs.parameters.secret-name}}"
+    # Templates
+    - name: generate-configmap
+      serviceAccountName: argo
+      resource:
+        action: create
+        setOwnerReference: true
+        manifest: |
+          apiVersion: v1
+          kind: ConfigMap
+          metadata:
+            generateName: configmap-example-
+          data:
+            OSM_VAR1: "hello"
+            OSM_VAR2: "world"
+      outputs:
+        parameters:
+          - name: configmap-name
+            valueFrom:
+              jsonPath: '{.metadata.name}'
+
+    - name: generate-secret
+      serviceAccountName: argo
+      resource:
+        action: create
+        setOwnerReference: true
+        manifest: |
+          apiVersion: v1
+          kind: Secret
+          type: Opaque
+          metadata:
+            generateName: secret-example-
+            namespace: argo
+          data:
+            OSM_SECRET1: aGVsbG8K
+            OSM_SECRET2: d29ybGQK
+      outputs:
+        parameters:
+          - name: secret-name
+            valueFrom:
+              jsonPath: '{.metadata.name}'
+
+    - name: generate-volume
+      serviceAccountName: argo
+      inputs:
+        parameters:
+          - name: pvc-size
+      resource:
+        action: create
+        setOwnerReference: true
+        manifest: |
+          apiVersion: v1
+          kind: PersistentVolumeClaim
+          metadata:
+            generateName: pvc-osm-
+          spec:
+            accessModes: ['ReadWriteOnce']
+            resources:
+              requests:
+                storage: '{{inputs.parameters.pvc-size}}'
+      outputs:
+        parameters:
+          - name: pvc-name
+            valueFrom:
+              jsonPath: '{.metadata.name}'
+
+    - name: check-initialization
+      serviceAccountName: argo
+      inputs:
+        parameters:
+          - name: pvc-repos-name
+          - name: pvc-resources-name
+          - name: configmap-name
+          - name: secret-name
+      volumes:
+        - name: repos
+          persistentVolumeClaim:
+            claimName: '{{inputs.parameters.pvc-repos-name}}'
+        - name: resources
+          persistentVolumeClaim:
+            claimName: '{{inputs.parameters.pvc-resources-name}}'
+      container:
+        image: alpine:latest
+        command: [sh, -c]
+        args: ["ls /mnt/vol; ls /mnt/vol2; echo ${OSM_VAR1} ${OSM_VAR2}; echo ${OSM_SECRET1} ${OSM_SECRET2};"]
+        envFrom:
+        - configMapRef:
+            name: '{{inputs.parameters.configmap-name}}'
+        - secretRef:
+            name: '{{inputs.parameters.secret-name}}'
+        volumeMounts:
+        - name: repos
+          mountPath: /mnt/vol
+        - name: resources
+          mountPath: /mnt/vol2

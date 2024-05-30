@@ -1,0 +1,206 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: get-echo-save-resource-list-template
+spec:
+  serviceAccountName: argo
+  entrypoint: get-echo-save-resource-list
+  templates:
+    - name: get-echo-save-resource-list
+      inputs:
+        parameters:
+          - name: pvc-repos-name
+          - name: pvc-resources-name
+          - name: configmap-name
+          - name: secret-name
+          - name: operation-id
+          - name: git-repo-base-folder
+          - name: source-folder
+          - name: destination-folder
+          - name: destination-file
+      steps:
+      - - name: get-resource-list
+          template: get-resource-list
+          arguments:
+            parameters:
+              - name: pvc-repos-name
+                value: '{{inputs.parameters.pvc-repos-name}}'
+              - name: pvc-resources-name
+                value: '{{inputs.parameters.pvc-resources-name}}'
+              - name: configmap-name
+                value: '{{inputs.parameters.configmap-name}}'
+              - name: secret-name
+                value: '{{inputs.parameters.secret-name}}'
+              - name: operation-id
+                value: '{{inputs.parameters.operation-id}}'
+              - name: git-folder
+                value: '{{inputs.parameters.git-repo-base-folder}}'
+              - name: source-folder
+                value: '{{inputs.parameters.source-folder}}'
+      - - name: echo-resource-list
+          template: echo-resource-list
+          arguments:
+            parameters:
+              - name: pvc-repos-name
+                value: '{{inputs.parameters.pvc-repos-name}}'
+              - name: pvc-resources-name
+                value: '{{inputs.parameters.pvc-resources-name}}'
+              - name: configmap-name
+                value: '{{inputs.parameters.configmap-name}}'
+              - name: secret-name
+                value: '{{inputs.parameters.secret-name}}'
+              - name: operation-id
+                value: '{{inputs.parameters.operation-id}}'
+              - name: input-resource-list
+                value: "{{steps.get-resource-list.outputs.parameters.resource_list}}"
+            # artifacts:
+            #   - name: input-resource-list
+            #     from: "{{steps.get-resource-list.outputs.artifacts.resource_list}}"
+      - - name: save-resource-list
+          template: save-resource-list
+          arguments:
+            parameters:
+              - name: pvc-repos-name
+                value: '{{inputs.parameters.pvc-repos-name}}'
+              - name: pvc-resources-name
+                value: '{{inputs.parameters.pvc-resources-name}}'
+              - name: configmap-name
+                value: '{{inputs.parameters.configmap-name}}'
+              - name: secret-name
+                value: '{{inputs.parameters.secret-name}}'
+              - name: operation-id
+                value: '{{inputs.parameters.operation-id}}'
+              - name: input-resource-list
+                value: '{{steps.echo-resource-list.outputs.parameters.resource_list}}'
+              - name: git-folder
+                value: '{{inputs.parameters.git-repo-base-folder}}'
+              - name: destination-folder
+                value: '{{inputs.parameters.destination-folder}}'
+              - name: destination-file
+                value: '{{inputs.parameters.destination-file}}'
+
+    # Templates
+    - name: get-resource-list
+      serviceAccountName: argo
+      inputs:
+        parameters:
+          - name: pvc-repos-name
+          - name: pvc-resources-name
+          - name: configmap-name
+          - name: secret-name
+          - name: operation-id
+          - name: git-folder
+          - name: source-folder
+      outputs:
+        parameters:
+          - name: resource_list
+            valueFrom:
+              path: /tmp/resource_list.yaml
+        # artifacts:
+        #   - name: resource_list  # name of artifact
+        #     path: /tmp/resource_list.yaml # path
+      securityContext:
+        runAsUser: 10000
+        runAsGroup: 10000
+        fsGroup: 10000
+      volumes:
+        - name: repos
+          persistentVolumeClaim:
+            claimName: '{{inputs.parameters.pvc-repos-name}}'
+        - name: resources
+          persistentVolumeClaim:
+            claimName: '{{inputs.parameters.pvc-resources-name}}'
+      container:
+        image: gerardogarcia/osm-odu:latest
+        command: [sh, -c]
+        args: ["/app/scripts/get_resource_list.sh {{inputs.parameters.source-folder}} {{inputs.parameters.git-folder}} > /tmp/resource_list.yaml"]
+        volumeMounts:
+        - name: repos
+          mountPath: /app/repos
+        - name: resources
+          mountPath: /app/resources
+        envFrom:
+        - configMapRef:
+            name: '{{inputs.parameters.configmap-name}}'
+        - secretRef:
+            name: '{{inputs.parameters.secret-name}}'
+
+    - name: echo-resource-list
+      serviceAccountName: argo
+      inputs:
+        parameters:
+          - name: pvc-repos-name
+          - name: pvc-resources-name
+          - name: configmap-name
+          - name: secret-name
+          - name: operation-id
+          - name: input-resource-list
+        # artifacts:
+        #   - name: input-resource-list
+        #     path: /tmp/input_resource_list.yaml
+      outputs:
+        parameters:
+          - name: resource_list
+            valueFrom:
+              path: /tmp/resource_list.yaml
+        # artifacts:
+        # - name: resource_list  # name of artifact
+        #   path: /tmp/resource_list.yaml # path
+      securityContext:
+        runAsUser: 10000
+        runAsGroup: 10000
+        fsGroup: 10000
+      volumes:
+        - name: repos
+          persistentVolumeClaim:
+            claimName: '{{inputs.parameters.pvc-repos-name}}'
+        - name: resources
+          persistentVolumeClaim:
+            claimName: '{{inputs.parameters.pvc-resources-name}}'
+      container:
+        image: gerardogarcia/osm-odu:latest
+        command: [sh, -c]
+        args: ["echo '{{inputs.parameters.input-resource-list}}' > /tmp/resource_list.yaml"]
+        volumeMounts:
+        - name: repos
+          mountPath: /app/repos
+        - name: resources
+          mountPath: /app/resources
+
+    - name: save-resource-list
+      serviceAccountName: argo
+      inputs:
+        parameters:
+          - name: pvc-repos-name
+          - name: pvc-resources-name
+          - name: configmap-name
+          - name: secret-name
+          - name: operation-id
+          - name: input-resource-list
+          - name: git-folder
+          - name: destination-folder
+          - name: destination-file
+        # artifacts:
+        #   - name: input-resource-list
+        #     path: /tmp/input_resource_list.yaml
+      securityContext:
+        runAsUser: 10000
+        runAsGroup: 10000
+        fsGroup: 10000
+      volumes:
+        - name: repos
+          persistentVolumeClaim:
+            claimName: '{{inputs.parameters.pvc-repos-name}}'
+        - name: resources
+          persistentVolumeClaim:
+            claimName: '{{inputs.parameters.pvc-resources-name}}'
+      container:
+        image: gerardogarcia/osm-odu:latest
+        command: [sh, -c]
+        # args: ["echo {{inputs.parameters.destination-file}}; echo {{inputs.parameters.operation-id}}"]
+        args: ["mkdir -p {{inputs.parameters.git-folder}}/{{inputs.parameters.destination-folder}}; echo '{{inputs.parameters.input-resource-list}}' > {{inputs.parameters.git-folder}}/{{inputs.parameters.destination-folder}}/{{inputs.parameters.destination-file}}; ls {{inputs.parameters.git-folder}}/{{inputs.parameters.destination-folder}}"]
+        volumeMounts:
+        - name: repos
+          mountPath: /app/repos
+        - name: resources
+          mountPath: /app/resources

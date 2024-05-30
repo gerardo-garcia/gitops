@@ -1,0 +1,54 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: clone-repo-template
+spec:
+  serviceAccountName: argo
+  entrypoint: clone-repo
+  templates:
+    - name: clone-repo
+      serviceAccountName: argo
+      inputs:
+        parameters:
+          - name: pvc-repos-name
+          - name: pvc-resources-name
+          - name: configmap-name
+          - name: secret-name
+          - name: git-repo
+          - name: git-folder
+          - name: git-secret
+      securityContext:
+        runAsUser: 10000
+        runAsGroup: 10000
+        fsGroup: 10000
+      volumes:
+        - name: repos
+          persistentVolumeClaim:
+            claimName: '{{inputs.parameters.pvc-repos-name}}'
+        - name: resources
+          persistentVolumeClaim:
+            claimName: '{{inputs.parameters.pvc-resources-name}}'
+        - name: git-secret
+          secret:
+            secretName: '{{inputs.parameters.git-secret}}'
+      container:
+        image: gerardogarcia/osm-odu:latest
+        command: [sh, -c]
+        args: ["ls -la /app/repos; /app/scripts/clone_git_repo.sh"]
+        envFrom:
+        - configMapRef:
+            name: '{{inputs.parameters.configmap-name}}'
+        - secretRef:
+            name: '{{inputs.parameters.secret-name}}'
+        volumeMounts:
+        - name: repos
+          mountPath: /app/repos
+        - name: resources
+          mountPath: /app/resources
+        - name: git-secret
+          mountPath: "/app/.ssh"
+        env: &env_parameters
+        - name: GIT_REPO
+          value: '{{inputs.parameters.git-repo}}'
+        - name: GIT_REPO_FOLDER
+          value: '{{inputs.parameters.git-folder}}'
