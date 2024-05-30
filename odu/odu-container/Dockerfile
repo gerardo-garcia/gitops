@@ -39,5 +39,5 @@ ENV GIT_USER ""
 ENV GIT_PASSWORD ""
 ENV GIT_SSHKEY ""
 
-CMD ["/app/scripts/source.sh"]
+CMD ["/app/scripts/test.sh"]
 
