@@ -1,3 +1,4 @@
-export GIT_REPO="git@gitlab.com:cloud-native-osm/shared/osm-gitops-operations.git"
+export GIT_REPO="git@github.com:gerardo-garcia/gitops.git"
 export GIT_SSHKEY="$(cat ~/.ssh/id_rsa|base64 -w 0)"
-export GIT_MANIFEST_FOLDER="pre-requirements/flux/templates/sw-catalogs/infra-controllers/crossplane/controller/manifests"
+export GIT_MANIFEST_FOLDER="sw-catalogs/cluster-aks"
+#export LOCAL_TEST_FLAG="y"
